@@ -515,6 +515,9 @@ function calculateGen8(
   } else if (attacker.hasAbility('Analytic') && turnOrder !== 'FIRST') {
     bpMods.push(0x14cd);
     description.attackerAbility = attacker.ability;
+  } else if (attacker.hasAbility('Punk Rock') && move.isSound) {
+    bpMods.push(0x14cd);
+    description.attackerAbility = attacker.ability;
   } else if (
     attacker.hasAbility('Sand Force') &&
     field.hasWeather('Sand') &&
@@ -903,6 +906,10 @@ function calculateGen8(
     dfMods.push(0x2000);
     description.defenderAbility = defender.ability;
   }
+  if (defender.hasAbility('Dauntless Shield') && hitsPhysical) {
+    dfMods.push(0x1800);
+    description.defenderAbility = defender.ability;
+  }
 
   defense = Math.max(1, pokeRound((defense * chainMods(dfMods)) / 0x1000));
 
@@ -1042,13 +1049,9 @@ function calculateGen8(
     finalMods.push(0xc00);
     description.defenderAbility = defender.ability;
   }
-  if (move.isSound && defender.hasAbility('Punk Rock')) {
+  if (defender.hasAbility('Punk Rock') && move.isSound) {
     finalMods.push(0x800);
     description.defenderAbility = defender.ability;
-  }
-  if (move.isSound && attacker.hasAbility('Punk Rock')) {
-    finalMods.push(0x1300);
-    description.attackerAbility = attacker.ability;
   }
   if (attacker.hasItem('Metronome') && (move.metronomeCount || 0) >= 1) {
     const metronomeCount = Math.floor(move.metronomeCount!);
