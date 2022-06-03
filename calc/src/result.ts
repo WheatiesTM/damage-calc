@@ -1,8 +1,10 @@
 import {RawDesc, display, displayMove, getRecovery, getRecoil, getKOChance} from './desc';
-import {Generation} from './gen';
+import {Generation} from './data/interface';
 import {Field} from './field';
 import {Move} from './move';
 import {Pokemon} from './pokemon';
+
+export type Damage = number | number[] | [number, number] | [number[], number[]];
 
 export class Result {
   gen: Generation;
@@ -10,7 +12,7 @@ export class Result {
   defender: Pokemon;
   move: Move;
   field: Field;
-  damage: number[];
+  damage: number | number[] | [number[], number[]];
   rawDesc: RawDesc;
 
   constructor(
@@ -19,8 +21,8 @@ export class Result {
     defender: Pokemon,
     move: Move,
     field: Field,
-    damage: number[],
-    rawDesc: RawDesc
+    damage: Damage,
+    rawDesc: RawDesc,
   ) {
     this.gen = gen;
     this.attacker = attacker;
@@ -33,6 +35,13 @@ export class Result {
 
   /* get */ desc() {
     return this.fullDesc();
+  }
+
+  range(): [number, number] {
+    const range = damageRange(this.damage);
+    if (typeof range[0] === 'number') return range as [number, number];
+    const d = range as [number[], number[]];
+    return [d[0][0] + d[0][1], d[1][0] + d[1][1]];
   }
 
   fullDesc(notation = '%', err = true) {
@@ -72,4 +81,26 @@ export class Result {
       err
     );
   }
+}
+
+export function damageRange(
+  damage: Damage
+): [number, number] | [[number, number], [number, number]] {
+  // Fixed Damage
+  if (typeof damage === 'number') return [damage, damage];
+  // Standard Damage
+  if (damage.length > 2) {
+    const d = damage as number[];
+    if (d[0] > d[d.length - 1]) return [Math.min(...d), Math.max(...d)];
+    return [d[0], d[d.length - 1]];
+  }
+  // Fixed Parental Bond Damage
+  if (typeof damage[0] === 'number' && typeof damage[1] === 'number') {
+    return [[damage[0], damage[1]], [damage[0], damage[1]]];
+  }
+  // Parental Bond Damage
+  const d = damage as [number[], number[]];
+  if (d[0][0] > d[0][d[0].length - 1]) d[0] = d[0].slice().sort();
+  if (d[1][0] > d[1][d[1].length - 1]) d[1] = d[1].slice().sort();
+  return [[d[0][0], d[1][0]], [d[0][d[0].length - 1], d[1][d[1].length - 1]]];
 }

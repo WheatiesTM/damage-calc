@@ -1,9 +1,13 @@
+import * as I from './interface';
+import {toID} from '../util';
+
 const RBY: string[] = [];
 
 const GSC: string[] = [];
 
 const ADV = [
   'Air Lock',
+  'Arena Trap',
   'Battle Armor',
   'Blaze',
   'Chlorophyll',
@@ -31,6 +35,7 @@ const ADV = [
   'Intimidate',
   'Keen Eye',
   'Levitate',
+  'Lightning Rod',
   'Limber',
   'Liquid Ooze',
   'Magma Armor',
@@ -48,12 +53,15 @@ const ADV = [
   'Pure Power',
   'Rain Dish',
   'Rock Head',
+  'Rough Skin',
+  'Run Away',
   'Sand Stream',
   'Sand Veil',
   'Serene Grace',
   'Shadow Tag',
   'Shed Skin',
   'Shell Armor',
+  'Shield Dust',
   'Soundproof',
   'Speed Boost',
   'Static',
@@ -78,6 +86,7 @@ const ADV = [
 
 const DPP = ADV.concat([
   'Adaptability',
+  'Aftermath',
   'Anger Point',
   'Anticipation',
   'Bad Dreams',
@@ -85,6 +94,7 @@ const DPP = ADV.concat([
   'Dry Skin',
   'Filter',
   'Flower Gift',
+  'Forewarn',
   'Frisk',
   'Gluttony',
   'Heatproof',
@@ -104,6 +114,7 @@ const DPP = ADV.concat([
   'Persistent',
   'Poison Heal',
   'Quick Feet',
+  'Rebound',
   'Reckless',
   'Rivalry',
   'Scrappy',
@@ -117,6 +128,7 @@ const DPP = ADV.concat([
   'Solid Rock',
   'Stall',
   'Steadfast',
+  'Storm Drain',
   'Super Luck',
   'Tangled Feet',
   'Technician',
@@ -141,8 +153,8 @@ const BW = DPP.concat([
   'Imposter',
   'Infiltrator',
   'Iron Barbs',
-  'Lightning Rod',
   'Light Metal',
+  'Justified',
   'Magic Bounce',
   'Moody',
   'Moxie',
@@ -150,12 +162,14 @@ const BW = DPP.concat([
   'Mummy',
   'Overcoat',
   'Pickpocket',
+  'Poison Touch',
   'Prankster',
+  'Rattled',
+  'Regenerator',
   'Sand Force',
   'Sand Rush',
   'Sap Sipper',
   'Sheer Force',
-  'Storm Drain',
   'Telepathy',
   'Teravolt',
   'Toxic Boost',
@@ -182,6 +196,7 @@ const XY = BW.concat([
   'Fur Coat',
   'Gale Wings',
   'Gooey',
+  'Grass Pelt',
   'Magician',
   'Mega Launcher',
   'Parental Bond',
@@ -211,7 +226,6 @@ const SM = XY.concat([
   'Fluffy',
   'Full Metal Body',
   'Galvanize',
-  'Grass Pelt',
   'Grassy Surge',
   'Innards Out',
   'Liquid Voice',
@@ -243,8 +257,16 @@ const SM = XY.concat([
 ]);
 
 const SS = SM.concat([
+  'As One (Glastrier)',
+  'As One (Spectrier)',
+  'Ball Fetch',
+  'Chilling Neigh',
+  'Cotton Down',
+  'Curious Medicine',
   'Dauntless Shield',
+  'Dragon\'s Maw',
   'Gorilla Tactics',
+  'Grim Neigh',
   'Gulp Missile',
   'Hunger Switch',
   'Ice Face',
@@ -259,13 +281,57 @@ const SS = SM.concat([
   'Power Spot',
   'Propeller Tail',
   'Punk Rock',
+  'Quick Draw',
   'Ripen',
   'Sand Spit',
   'Screen Cleaner',
   'Stalwart',
   'Steam Engine',
   'Steely Spirit',
+  'Transistor',
+  'Unseen Fist',
   'Wandering Spirit',
 ]);
 
 export const ABILITIES = [[], RBY, GSC, ADV, DPP, BW, XY, SM, SS];
+
+export class Abilities implements I.Abilities {
+  private readonly gen: I.GenerationNum;
+
+  constructor(gen: I.GenerationNum) {
+    this.gen = gen;
+  }
+
+  get(id: I.ID) {
+    return ABILITIES_BY_ID[this.gen][id];
+  }
+
+  *[Symbol.iterator]() {
+    for (const id in ABILITIES_BY_ID[this.gen]) {
+      yield this.get(id as I.ID)!;
+    }
+  }
+}
+
+class Ability implements I.Ability {
+  readonly kind: 'Ability';
+  readonly id: I.ID;
+  readonly name: I.AbilityName;
+
+  constructor(name: string) {
+    this.kind = 'Ability';
+    this.id = toID(name);
+    this.name = name as I.AbilityName;
+  }
+}
+
+const ABILITIES_BY_ID: Array<{[id: string]: Ability}> = [];
+
+for (const abilities of ABILITIES) {
+  const map: {[id: string]: Ability} = {};
+  for (const ability of abilities) {
+    const a = new Ability(ability);
+    map[a.id] = a;
+  }
+  ABILITIES_BY_ID.push(map);
+}

@@ -1,135 +1,135 @@
-import {Gender, Species, SPECIES} from './data/species';
-import {Type} from './data/types';
-import {Generation} from './gen';
-import {StatsTable, calcStat, STATS, DVToIV, getHPDV, shortForm, Stat} from './stats';
-import {extend} from './util';
+import * as I from './data/interface';
+import {Stats} from './stats';
+import {toID, extend, assignWithout} from './util';
+import {State} from './state';
 
-export type Status =
-  | 'Healthy'
-  | 'Paralyzed'
-  | 'Poisoned'
-  | 'Badly Poisoned'
-  | 'Burned'
-  | 'Asleep'
-  | 'Frozen';
+const STATS = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'] as I.StatID[];
+const SPC = new Set(['spc']);
 
-export class Pokemon {
-  gen: Generation;
-  name: string;
-  species: Species;
 
-  type1: Type;
-  type2?: Type;
-  weight: number;
+export class Pokemon implements State.Pokemon {
+  gen: I.Generation;
+  name: I.SpeciesName;
+  species: I.Specie;
+
+  types: [I.TypeName] | [I.TypeName, I.TypeName];
+  weightkg: number;
 
   level: number;
-  gender?: Gender;
-  ability?: string;
-  abilityOn: boolean;
-  item?: string;
+  gender?: I.GenderName;
+  ability?: I.AbilityName;
+  abilityOn?: boolean;
+  isDynamaxed?: boolean;
+  item?: I.ItemName;
 
-  nature: string;
-  ivs: StatsTable<number>;
-  evs: StatsTable<number>;
-  boosts: StatsTable<number>;
-  rawStats: StatsTable<number>;
-  stats: StatsTable<number>;
+  nature: I.NatureName;
+  ivs: I.StatsTable;
+  evs: I.StatsTable;
+  boosts: I.StatsTable;
+  rawStats: I.StatsTable;
+  stats: I.StatsTable;
 
-  curHP: number;
-  status: Status;
+  originalCurHP: number;
+  status: I.StatusName | '';
   toxicCounter: number;
 
-  moves: string[];
+  moves: I.MoveName[];
 
   constructor(
-    gen: Generation,
+    gen: I.Generation,
     name: string,
-    options: {
-      level?: number;
-      ability?: string;
-      abilityOn?: boolean;
-      item?: string;
-      gender?: Gender;
-      nature?: string;
-      ivs?: Partial<StatsTable<number>>;
-      evs?: Partial<StatsTable<number>>;
-      boosts?: Partial<StatsTable<number>>;
+    options: Partial<State.Pokemon> & {
       curHP?: number;
-      status?: Status;
-      toxicCounter?: number;
-      moves?: string[];
-      overrides?: Partial<Species>;
+      ivs?: Partial<I.StatsTable> & {spc?: number};
+      evs?: Partial<I.StatsTable> & {spc?: number};
+      boosts?: Partial<I.StatsTable> & {spc?: number};
     } = {}
   ) {
-    this.species = extend(true, {}, SPECIES[gen][name], options.overrides);
+    this.species = extend(true, {}, gen.species.get(toID(name)), options.overrides);
 
     this.gen = gen;
-    this.name = name;
-    this.type1 = this.species.t1;
-    this.type2 = this.species.t2;
-    this.weight = this.species.w;
+    this.name = options.name || name as I.SpeciesName;
+    this.types = this.species.types;
+    this.isDynamaxed = !!options.isDynamaxed;
+    this.weightkg = this.species.weightkg;
+    // Gigantamax 'forms' inherit weight from their base species when not dynamaxed
+    // TODO: clean this up with proper Gigantamax support
+    if (this.weightkg === 0 && !this.isDynamaxed && this.species.baseSpecies) {
+      this.weightkg = gen.species.get(toID(this.species.baseSpecies))!.weightkg;
+    }
 
     this.level = options.level || 100;
-    this.gender = options.gender || this.species.gender || 'male';
-    this.ability = options.ability || this.species.ab;
+    this.gender = options.gender || this.species.gender || 'M';
+    this.ability = options.ability || this.species.abilities?.[0] || undefined;
     this.abilityOn = !!options.abilityOn;
+
     this.item = options.item;
-
-    this.nature = options.nature || 'Serious';
+    this.nature = options.nature || ('Serious' as I.NatureName);
     this.ivs = Pokemon.withDefault(gen, options.ivs, 31);
-    this.evs = Pokemon.withDefault(gen, options.evs, gen >= 3 ? 0 : 252);
-    this.boosts = Pokemon.withDefault(gen, options.boosts, 0);
+    this.evs = Pokemon.withDefault(gen, options.evs, gen.num >= 3 ? 0 : 252);
+    this.boosts = Pokemon.withDefault(gen, options.boosts, 0, false);
 
-    if (gen < 3) {
-      this.ivs.hp = DVToIV(
-        getHPDV({
+    if (gen.num < 3) {
+      this.ivs.hp = Stats.DVToIV(
+        Stats.getHPDV({
           atk: this.ivs.atk,
           def: this.ivs.def,
           spe: this.ivs.spe,
-          spc: typeof this.ivs.spc === 'undefined' ? this.ivs.spa : this.ivs.spc,
+          spc: this.ivs.spa,
         })
       );
     }
 
-    this.rawStats = {} as StatsTable<number>;
-    this.stats = {} as StatsTable<number>;
-    for (const stat of STATS[gen]) {
+    this.rawStats = {} as I.StatsTable;
+    this.stats = {} as I.StatsTable;
+    for (const stat of STATS) {
       const val = this.calcStat(gen, stat);
       this.rawStats[stat] = val;
       this.stats[stat] = val;
     }
 
-    this.curHP = options.curHP && options.curHP <= this.maxHP() ? options.curHP : this.maxHP();
-    this.status = options.status || 'Healthy';
+    const curHP = options.curHP || options.originalCurHP;
+    this.originalCurHP = curHP && curHP <= this.rawStats.hp ? curHP : this.rawStats.hp;
+    this.status = options.status || '';
     this.toxicCounter = options.toxicCounter || 0;
     this.moves = options.moves || [];
   }
 
-  /* get */ maxHP() {
-    return this.rawStats.hp;
+  maxHP(original = false) {
+    // Shedinja still has 1 max HP during the effect even if its Dynamax Level is maxed (DaWoblefet)
+    return !original && this.isDynamaxed && this.species.baseStats.hp !== 1
+      ? this.rawStats.hp * 2
+      : this.rawStats.hp;
+  }
+
+  curHP(original = false) {
+    // Shedinja still has 1 max HP during the effect even if its Dynamax Level is maxed (DaWoblefet)
+    return !original && this.isDynamaxed && this.species.baseStats.hp !== 1
+      ? this.originalCurHP * 2
+      : this.originalCurHP;
   }
 
   hasAbility(...abilities: string[]) {
-    return this.ability && abilities.indexOf(this.ability) !== -1;
+    return !!(this.ability && abilities.includes(this.ability));
   }
 
   hasItem(...items: string[]) {
-    return this.item && items.indexOf(this.item) !== -1;
+    return !!(this.item && items.includes(this.item));
   }
 
-  hasStatus(...statuses: Status[]) {
-    return statuses.indexOf(this.status) !== -1;
+  hasStatus(...statuses: I.StatusName[]) {
+    return !!(this.status && statuses.includes(this.status));
   }
 
-  hasType(...types: Type[]) {
+  hasType(...types: I.TypeName[]) {
     for (const type of types) {
-      if (this.type1 === type || this.type2 === type) return true;
+      if (this.types.includes(type)) return true;
     }
     return false;
   }
 
   named(...names: string[]) {
-    return names.indexOf(this.name) !== -1;
+    return names.includes(this.name);
   }
 
   clone() {
@@ -137,13 +137,14 @@ export class Pokemon {
       level: this.level,
       ability: this.ability,
       abilityOn: this.abilityOn,
+      isDynamaxed: this.isDynamaxed,
       item: this.item,
       gender: this.gender,
       nature: this.nature,
       ivs: extend(true, {}, this.ivs),
       evs: extend(true, {}, this.evs),
       boosts: extend(true, {}, this.boosts),
-      curHP: this.curHP,
+      originalCurHP: this.originalCurHP,
       status: this.status,
       toxicCounter: this.toxicCounter,
       moves: this.moves.slice(),
@@ -151,11 +152,11 @@ export class Pokemon {
     });
   }
 
-  private calcStat(gen: Generation, stat: Stat) {
-    return calcStat(
+  private calcStat(gen: I.Generation, stat: I.StatID) {
+    return Stats.calcStat(
       gen,
       stat,
-      this.species.bs[shortForm(stat)]!,
+      this.species.baseStats[stat],
       this.ivs[stat]!,
       this.evs[stat]!,
       this.level,
@@ -163,40 +164,51 @@ export class Pokemon {
     );
   }
 
-  static getForme(gen: Generation, speciesName: string, item?: string, moveName?: string) {
-    const species = SPECIES[gen][speciesName];
-    if (!species || !species.formes) {
+  static getForme(
+    gen: I.Generation,
+    speciesName: string,
+    item?: I.ItemName,
+    moveName?: I.MoveName
+  ) {
+    const species = gen.species.get(toID(speciesName));
+    if (!species || !species.otherFormes) {
       return speciesName;
     }
 
     let i = 0;
     if (
       (item &&
-        ((item.indexOf('ite') !== -1 && item.indexOf('ite Y') === -1) ||
+        ((item.includes('ite') && !item.includes('ite Y')) ||
           (speciesName === 'Groudon' && item === 'Red Orb') ||
           (speciesName === 'Kyogre' && item === 'Blue Orb'))) ||
       (moveName && speciesName === 'Meloetta' && moveName === 'Relic Song') ||
       (speciesName === 'Rayquaza' && moveName === 'Dragon Ascent')
     ) {
       i = 1;
-    } else if (item && item.indexOf('ite Y') !== -1) {
+    } else if (item?.includes('ite Y')) {
       i = 2;
     }
 
-    return species.formes[i];
+    return i ? species.otherFormes[i - 1] : species.name;
   }
 
   private static withDefault(
-    gen: Generation,
-    current: Partial<StatsTable<number>> | undefined,
-    val: number
+    gen: I.Generation,
+    current: Partial<I.StatsTable> & {spc?: number} | undefined,
+    val: number,
+    match = true,
   ) {
-    return extend(
-      true,
-      {},
-      {hp: val, atk: val, def: val, spe: val},
-      gen < 2 ? {spc: val} : {spa: val, spd: val},
-      current
-    );
+    const cur: Partial<I.StatsTable> = {};
+    if (current) {
+      assignWithout(cur, current, SPC);
+      if (current.spc) {
+        cur.spa = current.spc;
+        cur.spd = current.spc;
+      }
+      if (match && gen.num <= 2 && current.spa !== current.spd) {
+        throw new Error('Special Attack and Special Defense must match before Gen 3');
+      }
+    }
+    return {hp: val, atk: val, def: val, spa: val, spd: val, spe: val, ...cur};
   }
 }

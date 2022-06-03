@@ -1,38 +1,30 @@
 {
-  "name": "import",
   "private": true,
-  "version": "0.1.0",
-  "main": "index.js",
-  "types": "index.d.ts",
-  "description": "Logic for importing Pokémon sets for use by the calc",
-  "homepage": "https://calc.pokemonshowdown.com/",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/smogon/damage-calc.git"
-  },
-  "author": {
-    "name": "Kirk Scheibelhut",
-    "email": "pre@pkmn.cc",
-    "url": "https://pkmn.cc"
-  },
+  "repository": "github:smogon/damage-calc",
   "license": "MIT",
   "dependencies": {
-    "@types/node": "^12.7.2",
-    "@pokemon-showdown/sets": "^0.0.4",
+    "@smogon/sets": "^2.0.0",
+    "@types/node": "^17.0.0",
     "calc": "file:../calc",
-    "source-map-support": "^0.5.13"
+    "smogon": "^2.0.9",
+    "source-map-support": "^0.5.21"
   },
   "devDependencies": {
-    "gts": "^1.1.0",
-    "typescript": "^3.5.3"
+    "@pkmn/eslint-config": "^2.1.0",
+    "@typescript-eslint/eslint-plugin": "^5.7.0",
+    "eslint": "^8.4.1",
+    "eslint-plugin-import": "^2.25.3",
+    "eslint-plugin-jest": "^25.3.0",
+    "typescript": "^4.5.4"
   },
   "scripts": {
-    "lint": "gts check",
-    "fix": "gts fix",
+    "lint": "eslint --cache src --ext ts",
+    "fix": "eslint --fix src --ext ts",
     "compile": "tsc -p .",
+    "build": "npm run compile",
     "test": "true",
-    "prepare": "npm run compile",
-    "pretest": "npm run compile",
+    "prepare": "npm run build",
+    "pretest": "npm run build",
     "posttest": "npm run lint"
   }
 }

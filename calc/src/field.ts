@@ -1,43 +1,40 @@
-export type GameType = 'Singles' | 'Doubles';
-export type Terrain = 'Electric' | 'Grassy' | 'Psychic' | 'Misty';
-export type Weather =
-  | 'Sand'
-  | 'Sun'
-  | 'Rain'
-  | 'Hail'
-  | 'Harsh Sunshine'
-  | 'Heavy Rain'
-  | 'Strong Winds';
+import {State} from './state';
+import {GameType, Weather, Terrain} from './data/interface';
 
-export class Field {
+export class Field implements State.Field {
   gameType: GameType;
   weather?: Weather;
   terrain?: Terrain;
+  isMagicRoom: boolean;
+  isWonderRoom: boolean;
   isGravity: boolean;
+  isAuraBreak?: boolean;
+  isFairyAura?: boolean;
+  isDarkAura?: boolean;
   attackerSide: Side;
   defenderSide: Side;
 
-  constructor(
-    field: {
-      gameType?: GameType;
-      weather?: Weather;
-      terrain?: Terrain;
-      isGravity?: boolean;
-      attackerSide?: Partial<Side>;
-      defenderSide?: Partial<Side>;
-    } = {}
-  ) {
+  constructor(field: Partial<State.Field> = {}) {
     this.gameType = field.gameType || 'Singles';
     this.terrain = field.terrain;
     this.weather = field.weather;
+    this.isMagicRoom = !!field.isMagicRoom;
+    this.isWonderRoom = !!field.isWonderRoom;
     this.isGravity = !!field.isGravity;
+    this.isAuraBreak = field.isAuraBreak || false;
+    this.isFairyAura = field.isFairyAura || false;
+    this.isDarkAura = field.isDarkAura || false;
 
     this.attackerSide = new Side(field.attackerSide || {});
     this.defenderSide = new Side(field.defenderSide || {});
   }
 
   hasWeather(...weathers: Weather[]) {
-    return this.weather && weathers.indexOf(this.weather) !== -1;
+    return !!(this.weather && weathers.includes(this.weather));
+  }
+
+  hasTerrain(...terrains: Terrain[]) {
+    return !!(this.terrain && terrains.includes(this.terrain));
   }
 
   swap() {
@@ -50,17 +47,26 @@ export class Field {
       gameType: this.gameType,
       weather: this.weather,
       terrain: this.terrain,
+      isMagicRoom: this.isMagicRoom,
+      isWonderRoom: this.isWonderRoom,
       isGravity: this.isGravity,
       attackerSide: this.attackerSide,
       defenderSide: this.defenderSide,
+      isAuraBreak: this.isAuraBreak,
+      isDarkAura: this.isDarkAura,
+      isFairyAura: this.isFairyAura,
     });
   }
 }
 
-export class Side {
+export class Side implements State.Side {
   spikes: number;
-  isSR: boolean;
   steelsurge: boolean;
+  vinelash: boolean;
+  wildfire: boolean;
+  cannonade: boolean;
+  volcalith: boolean;
+  isSR: boolean;
   isReflect: boolean;
   isLightScreen: boolean;
   isProtected: boolean;
@@ -71,25 +77,17 @@ export class Side {
   isFriendGuard: boolean;
   isAuroraVeil: boolean;
   isBattery: boolean;
+  isPowerSpot: boolean;
+  isSwitching?: 'out' | 'in';
 
-  constructor(side: {
-    spikes?: number;
-    isSR?: boolean;
-    steelsurge?: boolean;
-    isReflect?: boolean;
-    isLightScreen?: boolean;
-    isProtected?: boolean;
-    isSeeded?: boolean;
-    isForesight?: boolean;
-    isTailwind?: boolean;
-    isHelpingHand?: boolean;
-    isFriendGuard?: boolean;
-    isAuroraVeil?: boolean;
-    isBattery?: boolean;
-  }) {
+  constructor(side: State.Side = {}) {
     this.spikes = side.spikes || 0;
-    this.isSR = !!side.isSR;
     this.steelsurge = !!side.steelsurge;
+    this.vinelash = !!side.vinelash;
+    this.wildfire = !!side.wildfire;
+    this.cannonade = !!side.cannonade;
+    this.volcalith = !!side.volcalith;
+    this.isSR = !!side.isSR;
     this.isReflect = !!side.isReflect;
     this.isLightScreen = !!side.isLightScreen;
     this.isProtected = !!side.isProtected;
@@ -100,6 +98,8 @@ export class Side {
     this.isFriendGuard = !!side.isFriendGuard;
     this.isAuroraVeil = !!side.isAuroraVeil;
     this.isBattery = !!side.isBattery;
+    this.isPowerSpot = !!side.isPowerSpot;
+    this.isSwitching = side.isSwitching;
   }
 
   clone() {
